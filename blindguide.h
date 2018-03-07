@@ -17,9 +17,11 @@
 #define RESIST 1
 #define STOP 2
 
-// The coordinates for the initial borders (bottom_x, bottom_y, top_x, top_y)
-// Note that the border is assumed to be safe to the right of this line
-// So define the top and bottom accordingly
+/* 
+ * The coordinates for the initial borders (bottom_x, bottom_y, top_x, top_y)
+ * Note that the border is assumed to be safe to the right of this line
+ * So define the top and bottom accordingly
+ */
 double borderCoordinates[8] = {
     -1.5, -9.0,
     -1.5, 9.0,
@@ -33,11 +35,13 @@ typedef struct Coordinate {
     double y;
 } Coordinate;
 
-// Definition of a border line structure
-// bottom: Coordinate
-// top: Coordinate
-// length: length of border line
-// goodSide: side which is considered 'safe' (LEFT or RIGHT)
+/*
+ * Definition of a border line structure
+ * bottom: Coordinate
+ * top: Coordinate
+ * length: length of border line
+ * goodSide: side which is considered 'safe' (LEFT or RIGHT)
+ */
 typedef struct Borderline {
     struct Coordinate bottom;
     struct Coordinate top;
@@ -45,9 +49,11 @@ typedef struct Borderline {
     char goodSide; 
 } Borderline;
 
-// A 2D vector structure with additional length value
-// Use as unit vector recommended (hence the length)
-// Unit vector can be constructed using createVector()
+/*
+ * A 2D vector structure with additional length value
+ * Use as unit vector recommended (hence the length)
+ * Unit vector can be constructed using createVector()
+ */
 typedef struct Vector {
     double x;
     double y;
@@ -110,7 +116,7 @@ double getAcceleration(Vector * force);
  * toBorder will be populated by the vector from p to the closest point along the border line.
  * If the robot is on the 'good' side of the border, and the robot is pushed towards the border, returns RESIST.
  * If the robot is on the 'bad' side of the border, and the robot is pushed away from the border, returns STOP.
- * Else, returns 0.
+ * Else, returns NOTHING.
  */
 char approachingBorder(Coordinate * p, Borderline * b, Vector * force, Vector * toBorder);
 

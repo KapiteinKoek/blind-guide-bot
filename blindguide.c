@@ -57,7 +57,7 @@ double getResistance(double x, double y, double phi, double forceX, double force
         #if DEBUG
             printf("\nBorder %d of %d:\n", i+1, numBorderlines);
         #endif
-        double approaching = approachingBorder(&point, &borderlines[i], &force, &toBorder);
+        char approaching = approachingBorder(&point, &borderlines[i], &force, &toBorder);
         if (approaching == RESIST) {
             resistance = fmax(resistance, getBorderResistance(&force, &toBorder));
         } else if (approaching == STOP) {
@@ -120,7 +120,7 @@ double getBorderResistance(Vector * force, Vector * toBorder) {
     
     double a = getAcceleration(force);
     double t = sqrt((2 * toBorder->length) / a);
-    double resistance = (RESISTANCE_TIME - STOP_TIME) / (RESISTANCE_TIME - t);
+    double resistance = (RESISTANCE_TIME - t) / (RESISTANCE_TIME - STOP_TIME);
     #if DEBUG
         printf("a: %lf, t: %lf, res: %lf\n", a, t, resistance);
     #endif
@@ -138,7 +138,7 @@ void cleanup() {
 int main() {
     printf("Initializing borders...\n");
     initializeBorders();
-    printf("\nResistance: %lf\n", getResistance(-3.2, -11.0, 0.0, 0.7, 0.5));
+    printf("\nResistance: %lf\n", getResistance(3.0, -1.0, 0.0, -0.7, 0.5));
     printf("Cleaning up...\n");
     cleanup();
 }
