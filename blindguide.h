@@ -11,11 +11,8 @@
 #define RESISTANCE_TIME 3.5
 
 // THESE DO NOT NEED TO BE CHANGED
-#define LEFT -1
-#define RIGHT 1
-#define NOTHING 0
-#define RESIST 1
-#define STOP 2
+enum action {NOTHING, RESIST, STOP};
+enum side {LEFT, RIGHT};
 
 /* 
  * The coordinates for the initial borders (bottom_x, bottom_y, top_x, top_y)
@@ -46,7 +43,7 @@ typedef struct Borderline {
     struct Coordinate bottom;
     struct Coordinate top;
     double length;
-    char goodSide; 
+    enum side goodSide;
 } Borderline;
 
 /*
@@ -60,10 +57,36 @@ typedef struct Vector {
     double length;
 } Vector;
 
-// The number of border lines
-int numBorderlines;
-// Pointer to an array of border line structures
-struct Borderline * borderlines;
+/*
+ * Dynamic array structure that holds Borderline structures in an array.
+ * size indicates the number of elements that are currently present.
+ * capacity indicates the current maximum capacity of the dynamic array.
+ */
+typedef struct BorderlineArray {
+    struct Borderline * borderlines;
+    size_t size;
+    size_t capacity;
+} BorderlineArray;
+
+// Structure that holds all borderlines
+BorderlineArray borderlines;
+
+/*
+ * Populates the given BorderlineArray structure, such that it is an empty array of capacity size.
+ */
+void createBorderlineArray(BorderlineArray * ba, size_t size);
+
+/*
+ * Adds the given Borderline element to the specified BorderlineArray.
+ * If necessary, increases the capacity of the BorderlineArray array, multiplying its current capacity by two.
+ */
+void addToBorderlineArray(BorderlineArray * ba, Borderline element);
+
+/*
+ * Frees the memory allocated to the given BorderlineArray structure.
+ * Also resets the size and capacity to zero.
+ */
+void freeBorderlineArray(BorderlineArray * ba);
 
 /*
  * Creates and returns a Coordinate structure with the given x and y coordinates.
@@ -75,7 +98,7 @@ Coordinate createCoordinate(double x, double y);
  * and the given good side.
  * Also computes and stores the length of this border line.
  */
-Borderline createBorderline(Coordinate bottom, Coordinate top, char goodSide);
+Borderline createBorderline(Coordinate bottom, Coordinate top, enum side goodSide);
 
 /*
  * Creates and returns a Vector structure for the given x and y values.
@@ -94,6 +117,12 @@ void populateVector(double x, double y, Vector * v);
  * Creates and fills the borderlines array based on the values in borderCoordinates.
  */
 void initializeBorders();
+
+/*
+ * Adds a border to the border lines array, where the border is specified by the bottom and top x and y coordinates.
+ * goodSide indicates which side of the border, given the bottom and top coordinates, the robot should stay on.
+ */
+void addBorder(double bottomX, double bottomY, double topX, double topY, enum side goodSide);
 
 /*
  * Compute the necessary resistance when the robot is at the position defined by x, y and phi
@@ -118,7 +147,7 @@ double getAcceleration(Vector * force);
  * If the robot is on the 'bad' side of the border, and the robot is pushed away from the border, returns STOP.
  * Else, returns NOTHING.
  */
-char approachingBorder(Coordinate * p, Borderline * b, Vector * force, Vector * toBorder);
+enum action approachingBorder(Coordinate * p, Borderline * b, Vector * force, Vector * toBorder);
 
 /*
  * Determines the resistance needed when the robot is pushed with the given force along the toBorder vector.

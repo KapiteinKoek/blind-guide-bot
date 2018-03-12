@@ -11,7 +11,7 @@ Coordinate createCoordinate(double x, double y) {
     return c;
 }
 
-Borderline createBorderline(Coordinate bottom, Coordinate top, char goodSide) {
+Borderline createBorderline(Coordinate bottom, Coordinate top, enum side goodSide) {
     Borderline bl;
     bl.bottom = bottom;
     bl.top = top;
@@ -32,15 +32,45 @@ void populateVector(double x, double y, Vector * v) {
     v->y = y / v->length;
 }
 
+void createBorderlineArray(BorderlineArray * ba, size_t size) {
+    ba->borderlines = (struct Borderline *) malloc(size * sizeof(struct Borderline));
+    ba->size = 0;
+    ba->capacity = size;
+}
+
+void addToBorderlineArray(BorderlineArray * ba, Borderline element) {
+    if (ba->size >= ba->capacity) {
+        ba->capacity *= 2;
+        ba->borderlines = (struct Borderline *) realloc(ba->borderlines, ba->capacity * sizeof(struct Borderline));
+    }
+    ba->borderlines[ba->size++] = element;
+}
+
+void freeBorderlineArray(BorderlineArray * ba) {
+    free(ba->borderlines);
+    ba->borderlines = NULL;
+    ba->size = ba->capacity = 0;
+}
+
 void initializeBorders() {
-    int numCoords = sizeof(borderCoordinates) / sizeof(borderCoordinates[0]);
-    numBorderlines = numCoords / 4;
-    borderlines = (struct Borderline *) malloc(numBorderlines * sizeof(struct Borderline));
+    size_t numCoords = sizeof(borderCoordinates) / sizeof(borderCoordinates[0]);
+    size_t numBorderlines = numCoords / 4;
+    createBorderlineArray(&borderlines, numBorderlines);
     
     for (int i = 0; i < numBorderlines; i++) {
         int index = i * 4;
-        borderlines[i] = createBorderline(createCoordinate(borderCoordinates[index], borderCoordinates[index + 1]), createCoordinate(borderCoordinates[index + 2], borderCoordinates[index + 3]), RIGHT);
+        addBorder(borderCoordinates[index], borderCoordinates[index + 1], borderCoordinates[index + 2], borderCoordinates[index + 3], RIGHT);
     }
+}
+
+void addBorder(double bottomX, double bottomY, double topX, double topY, enum side goodSide) {
+    if (borderlines.borderlines == NULL || borderlines.capacity <= 0) {
+        createBorderlineArray(&borderlines, 1);
+    }
+    struct Coordinate bottom = createCoordinate(bottomX, bottomY);
+    struct Coordinate top = createCoordinate(topX, topY);
+    struct Borderline bl = createBorderline(bottom, top, goodSide);
+    addToBorderlineArray(&borderlines, bl);
 }
 
 double getResistance(double x, double y, double phi, double forceX, double forceY) {
@@ -53,14 +83,14 @@ double getResistance(double x, double y, double phi, double forceX, double force
     Vector force = createVector(forceX, forceY);
     Vector toBorder;
     
-    for (int i = 0; i < numBorderlines; i++) {
+    for (int i = 0; i < borderlines.size; i++) {
         #if DEBUG
-            printf("\nBorder %d of %d:\n", i+1, numBorderlines);
+            printf("\nBorder %d of %d:\n", i+1, borderlines.size);
         #endif
-        char approaching = approachingBorder(&point, &borderlines[i], &force, &toBorder);
-        if (approaching == RESIST) {
+        enum action a = approachingBorder(&point, &(borderlines.borderlines[i]), &force, &toBorder);
+        if (a == RESIST) {
             resistance = fmax(resistance, getBorderResistance(&force, &toBorder));
-        } else if (approaching == STOP) {
+        } else if (a == STOP) {
             return 1.0;
         }
     }
@@ -72,7 +102,7 @@ double getAcceleration(Vector * force) {
     return force->length / MASS;
 }
 
-char approachingBorder(Coordinate * p, Borderline * b, Vector * force, Vector * toBorder) {
+enum action approachingBorder(Coordinate * p, Borderline * b, Vector * force, Vector * toBorder) {
     Coordinate * v = &(b->bottom);
     Coordinate * w = &(b->top);
     
@@ -129,7 +159,7 @@ double getBorderResistance(Vector * force, Vector * toBorder) {
 }
 
 void cleanup() {
-    free(borderlines);
+    freeBorderlineArray(&borderlines);
 }
 
 /*
