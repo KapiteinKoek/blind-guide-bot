@@ -214,12 +214,12 @@ double dot(Vector * v1, Vector * v2);
 enum action approachingBorder(Coordinate * p, Borderline * b, Vector * force, Vector * toBorder);
 
 /*
- * Determines the resistance needed when the robot is pushed with the given force along the toBorder vector.
+ * Determines the resistance needed when the robot is pushed with the given force for dist meters.
  * Uses RESISTANCE_TIME and STOP_TIME to create a linearly increasing resistance when the time to traverse
  * the toBorder vector decreases.
  * Return value is clamped between 0 and 1.
  */
-double getBorderResistance(Vector * force, Vector * toBorder);
+double getBorderResistance(Vector * force, double dist);
 
 /*
  * Frees the memory allocated for the borderlines array.
@@ -283,6 +283,9 @@ double getResistance(double x, double y, double phi, double forceX, double force
     Coordinate point = createCoordinate(x, y);
     Vector force = createVector(forceX, forceY);
     Vector toBorder;
+    double nearestDistance = 1000000000;
+    enum action closestBorderAction = NOTHING;
+    
     unsigned int i = 0;
     for (i = 0; i < borderlines.size; i++) {
         #if DEBUG
@@ -291,13 +294,18 @@ double getResistance(double x, double y, double phi, double forceX, double force
         // Determine the necessary action for the current border line
         // The toBorder vector will also be populated accordingly
         enum action a = approachingBorder(&point, &(borderlines.borderlines[i]), &force, &toBorder);
-        if (a == RESIST) {
-            // Determine the maximum of the current resistance and the calculated resistance that is necessary for the given force and toBorder vectors
-            resistance = fmax(resistance, getBorderResistance(&force, &toBorder));
-        } else if (a == STOP) {
-            // If STOP is required, resist fully
-            return 1.0;
+        if (toBorder.length >= 0 && toBorder.length < nearestDistance) {
+            nearestDistance = toBorder.length;
+            closestBorderAction = a;
         }
+    }
+    
+    if (closestBorderAction == RESIST) {
+        // Determine the calculated resistance that is necessary for the given force and distance to the nearest border
+        resistance = getBorderResistance(&force, nearestDistance);
+    } else if (closestBorderAction == STOP) {
+        // If STOP is required, resist fully
+        return 1.0;
     }
     
     return resistance;
@@ -336,6 +344,13 @@ enum action approachingBorder(Coordinate * p, Borderline * b, Vector * force, Ve
     // If this value is positive, then force is going towards the border, if it is negative, force is going away
     char goingToBorder = angle > 0 ? 1 : 0;
     
+    // Now calculate the actual distance to the border when moving along the force vector
+    // And make sure the toBorder vector has the same direction as the force vector, with the calculated length
+    double dist = toBorder->length / angle;
+    toBorder->x = force->x;
+    toBorder->y = force->y;
+    toBorder->length = dist;
+    
     #if DEBUG
         printf("vx: %lf, vy: %lf, wx: %lf, wy: %lf\n", v->x, v->y, w->x, w->y);
         printf("l2: %lf, t: %lf, x: %lf, y: %lf\n", l2, t, x, y);
@@ -364,23 +379,18 @@ enum action approachingBorder(Coordinate * p, Borderline * b, Vector * force, Ve
     return NOTHING;
 }
 
-double getBorderResistance(Vector * force, Vector * toBorder) {
-    if (toBorder->length <= 0) {
+double getBorderResistance(Vector * force, double dist) {
+    if (dist <= 0) {
         return 1.0;
     }
     
-    // Determine the angle between the force and toBorder vectors
-    // Then use this to scale the distance to the border (larger angle => greater distance)
     // Then determine the acceleration and with that the time to traverse this scaled distance
     // Now linearly interpolate the resistance based on the parameters
-    double cos = dot(force, toBorder);
-    double dist = toBorder->length / cos;
     double a = getAcceleration(force);
     double t = sqrt((2 * dist) / a);
     double resistance = (RESISTANCE_TIME - t) / (RESISTANCE_TIME - STOP_TIME);
     #if DEBUG
-        printf("length: %lf\tcos: %lf\tdist: %lf\n", toBorder->length, cos, dist);
-        printf("a: %lf, t: %lf, res: %lf\n", a, t, resistance);
+        printf("distance: %lf, a: %lf, t: %lf, res: %lf\n", dist, a, t, resistance);
     #endif
     
     // Remove 0.5 from the resistance, to account for static resistance of the robot, then multiply the resistance by two, and finally clamp it between 0 and 1
