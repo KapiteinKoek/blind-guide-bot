@@ -4,7 +4,7 @@ Code to implement 'guide dog' functionality to Turtle soccer robots.
 ## How to compile
 - Use the makefile
   1. Move to the correct directory: `cd blind-guide-bot`
-  2. Execute the make command: `make`
+  2. Execute the make command: `make tester`
 - Manually compile the binary
 - Include blindguide.h in an existing project and compile that
 
