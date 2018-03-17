@@ -12,7 +12,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-BINARIES = blindguide
+BINARIES = blindguide tester
 
 CC = gcc
 CFLAGS = -Wall -g -c
@@ -26,4 +26,8 @@ clean:
 blindguide: blindguide.o
 
 blindguide.o: blindguide.c blindguide.h
+
+tester: tester.o
+
+tester.o: tester.c blindguide.h
 

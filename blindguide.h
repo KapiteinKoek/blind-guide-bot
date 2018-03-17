@@ -15,7 +15,7 @@
  */
 
 // Do we need debug output?
-#define DEBUG 1
+#define DEBUG 0
 
 // Mass of the robot in kg
 #define MASS 30
@@ -156,6 +156,11 @@ double getResistance(double x, double y, double phi, double forceX, double force
 double getAcceleration(Vector * force);
 
 /*
+ * Calculates and returns the dot product of the two given vectors.
+ */
+double dot(Vector * v1, Vector * v2);
+
+/*
  * Determines whether the robot at position p with the predefined RADIUS is approaching border line b
  * when it is pushed along force vector force.
  * toBorder will be populated by the vector from p to the closest point along the border line.
@@ -238,12 +243,16 @@ double getResistance(double x, double y, double phi, double forceX, double force
     unsigned int i = 0;
     for (i = 0; i < borderlines.size; i++) {
         #if DEBUG
-    //        printf("\nBorder %d of %d:\n", i+1, borderlines.size);
+            printf("\nBorder %d of %d:\n", i+1, borderlines.size);
         #endif
+        // Determine the necessary action for the current border line
+        // The toBorder vector will also be populated accordingly
         enum action a = approachingBorder(&point, &(borderlines.borderlines[i]), &force, &toBorder);
         if (a == RESIST) {
+            // Determine the maximum of the current resistance and the calculated resistance that is necessary for the given force and toBorder vectors
             resistance = fmax(resistance, getBorderResistance(&force, &toBorder));
         } else if (a == STOP) {
+            // If STOP is required, resist fully
             return 1.0;
         }
     }
@@ -255,22 +264,34 @@ double getAcceleration(Vector * force) {
     return force->length / MASS;
 }
 
+double dot(Vector * v1, Vector * v2) {
+    return (v1->x * v2->x) + (v1->y * v2->y);
+}
+
 enum action approachingBorder(Coordinate * p, Borderline * b, Vector * force, Vector * toBorder) {
     Coordinate * v = &(b->bottom);
     Coordinate * w = &(b->top);
     
+    // Determine the squared length of the border line
     double l2 = b->length * b->length;
+    // Now determine parameter t, which indicates to what fraction of the border line, point p is closest
     double t = fmax(0.0, fmin(1.0, ((p->x - v->x) * (w->x - v->x) + (p->y - v->y) * (w->y - v->y)) / l2));
+    // Use parameter t to get absolute x and y coordinates along the border line
     double x = v->x + t * (w->x - v->x);
     double y = v->y + t * (w->y - v->y);
     
+    // Fill the toBorder vector using the given point and the determined border line point
     populateVector(x - p->x, y - p->y, toBorder);
+    // Account for the radius of the robot (by reducing the length of the toBorder vector)
     toBorder->length -= RADIUS;
     
+    // Calculate on what side of the border line p is. d < 0 means LEFT, d > means right
     double d = (p->x - v->x) * (w->y - v->y) - (p->y - v->y) * (w->x - v->x);
     
-    double dot = (force->x * toBorder->x) + (force->y * toBorder->y);
-    char goingToBorder = dot > 0 ? 1 : 0;
+    // Get the cosine of the angle between the force and toBorder vectors
+    double angle = dot(force, toBorder);
+    // If this value is positive, then force is going towards the border, if it is negative, force is going away
+    char goingToBorder = angle > 0 ? 1 : 0;
     
     #if DEBUG
         printf("vx: %lf, vy: %lf, wx: %lf, wy: %lf\n", v->x, v->y, w->x, w->y);
@@ -278,21 +299,25 @@ enum action approachingBorder(Coordinate * p, Borderline * b, Vector * force, Ve
         printf("To border: distance: %lf, x: %lf, y: %lf\n", toBorder->length, toBorder->x, toBorder->y);
         printf("Force: distance: %lf, x: %lf, y: %lf\n", force->length, force->x, force->y);
         printf("Good side: %s, Side: %s\n", b->goodSide == LEFT ? "left" : "right", d < 0 ? "left" : "right");
-        printf("Dot: %lf, Going to border: %d\n", dot, goingToBorder);
+        printf("Angle: %lf, Going to border: %d\n", angle, goingToBorder);
     #endif
     
     if ((b->goodSide == LEFT && d < 0) || (b->goodSide == RIGHT && d > 0)) {
         // p is on the good side of the border
         if (goingToBorder) {
+            // The robot is moving towards the border, so RESIST
+            // Note that the amount of resistance is determined later (this can even be 0 or 1)
             return RESIST;
         }            
     } else {
         // p is on the bad side of the border
         if (!goingToBorder) {
+            // The robot is moving further away from the border, so STOP
             return STOP;
         }
     }
     
+    // No special circumstance, the robot is not moving towards the border, or it is going back across
     return NOTHING;
 }
 
@@ -301,17 +326,22 @@ double getBorderResistance(Vector * force, Vector * toBorder) {
         return 1.0;
     }
     
+    // Determine the angle between the force and toBorder vectors
+    // Then use this to scale the distance to the border (larger angle => greater distance)
+    // Then determine the acceleration and with that the time to traverse this scaled distance
+    // Now linearly interpolate the resistance based on the parameters
+    double cos = dot(force, toBorder);
+    double dist = toBorder->length / cos;
     double a = getAcceleration(force);
-    double t = sqrt((2 * toBorder->length) / a);
+    double t = sqrt((2 * dist) / a);
     double resistance = (RESISTANCE_TIME - t) / (RESISTANCE_TIME - STOP_TIME);
     #if DEBUG
+        printf("length: %lf\tcos: %lf\tdist: %lf\n", toBorder->length, cos, dist);
         printf("a: %lf, t: %lf, res: %lf\n", a, t, resistance);
     #endif
-        
-    double x = (1 - toBorder->length) / (1 - 0.0);
-    return fmin(fmax(0.0, x), 1.0) / 2;
     
-    //return fmin(fmax(0.0, resistance), 1.0);
+    // Remove 0.5 from the resistance, to account for static resistance of the robot, then multiply the resistance by two, and finally clamp it between 0 and 1
+    return fmin(fmax(0.0, (resistance - 0.5) * 2.0), 1.0);
 }
 
 void cleanup() {
