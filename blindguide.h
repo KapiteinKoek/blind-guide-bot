@@ -35,11 +35,54 @@ enum side {LEFT, RIGHT};
  * Note that the border is assumed to be safe to the right of this line
  * So define the top and bottom accordingly
  */
-double borderCoordinates[8] = {
+
+// Two lines; one right of the center, one left of the center:
+/*double borderCoordinates[8] = {
     -1.5, -9.0,
     -1.5, 9.0,
     1.5, 9.0,
     1.5, -9.0
+};*/
+
+// Windy path as specified in:
+// https://i.imgur.com/CqykjsL.png
+/*double borderCoordinates[60] = {
+    -6, -9, -6, 9, // l
+    -6, 9, 6, 9, // j
+    6, 9, 6, -9, // k
+    6, -9, -6, -9, // m
+    
+    2, -3, -1, -2, // r
+    -1, -2, 0, 6, // h
+    0, 6, -4, 6, // i
+    -4, 6, -3, -4, // f
+    -3, -4, 2, -3, // g
+    
+    6, 9, 3, 6, // t
+    3, 6, 2, 0, // s
+    2, 0, 5, 0, // b
+    5, 0, 5, -7, // q
+    5, -7, -4, -8, // n
+    -4, -8, -6, -9 // p
+};*/
+
+// Zigzag path as specified in:
+// https://i.imgur.com/79ABT2I.png
+double borderCoordinates[48] = {
+    -6, -9, -6, 9, // l
+    -6, 9, 6, 9, // j
+    6, 9, 6, -9, // k
+    6, -9, -6, -9, // m
+    
+    -2, -9, -6, -4, // q
+    -6, -4, -2, 0, // n
+    -2, 0, -6, 6, // h
+    -6, 6, -2, 9, // g
+    
+    3, 9, -1, 6, // f
+    -1, 6, 3, 0, // i
+    3, 0, -1, -4, // p
+    -1, -4, 3, -9, // r
 };
 
 // A 2D coordinate structure
