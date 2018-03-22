@@ -55,7 +55,7 @@ Vector createVector(double x, double y) {
  * Input Ports definitions *
  ***************************/
 #define NINPUTS     2                   /* Number of input ports (0...)*/
-#define NINPUTS0    3                   /* cur x y o */
+#define NINPUTS0    POSETYPESIZE                   /* cur x y o */
 #define NINPUTS1    3                   /* Jerrel's Forces */
 double NINPUTS_BGuide[NINPUTS] =  {NINPUTS0,NINPUTS1};
 
@@ -80,14 +80,17 @@ static void mdlInitializeSizes(SimStruct *S)
      * Input Ports definitions *
      ***************************/
     if (!ssSetNumInputPorts(S,NINPUTS)) return;
-    for(i=0;i<NINPUTS;i++)
-    {
-        /* input port i */
-        ssSetInputPortWidth(S,i,NINPUTS_BGuide[i]);
-        ssSetInputPortDirectFeedThrough(S,i,1);
-        ssSetInputPortRequiredContiguous(S,i,1);
-        ssSetInputPortDataType(S,i,SS_DOUBLE);
-    }
+    /* input port i */
+    ssSetInputPortWidth(S,0,NINPUTS_BGuide[0]);
+    ssSetInputPortDirectFeedThrough(S,0,1);
+    ssSetInputPortRequiredContiguous(S,0,1);
+    ssSetInputPortDataType(S,0,SS_INT8);
+    /* input port i */
+    ssSetInputPortWidth(S,1,NINPUTS_BGuide[1]);
+    ssSetInputPortDirectFeedThrough(S,1,1);
+    ssSetInputPortRequiredContiguous(S,1,1);
+    ssSetInputPortDataType(S,1,SS_DOUBLE);
+
     
     /****************************
      * Output Ports definitions *
@@ -155,14 +158,14 @@ static void mdlInitializeConditions(SimStruct *S)
 static void mdlOutputs(SimStruct *S, int_T tid)
 {
     /* Input Ports */
-    double* cur_xyo = (double*)ssGetInputPortRealSignalPtrs(S,0);             /* motionbus */
+    pPose_t cur_xyo = (pPose_t)ssGetInputPortRealSignalPtrs(S,0);             /* motionbus */
     double* Fvec    = (double*)ssGetInputPortRealSignalPtrs(S,1);
 
     /* Output Ports */
     double* resistance      = (double*)ssGetOutputPortSignal(S,0);
    
     initializeBorders();
-    *resistance = getResistance(cur_xyo[0], cur_xyo[1], cur_xyo[2], Fvec[0], Fvec[1]);
+    *resistance = getResistance(cur_xyo->x, cur_xyo->y, cur_xyo->o, Fvec[0], Fvec[1]);
     cleanup();
     
 }
