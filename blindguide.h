@@ -22,9 +22,9 @@
 // Radius around the center of the robot that must stay between the borders in meter
 #define RADIUS 0.3
 // When the robot reaches the border within this many seconds, stop immediately
-#define STOP_TIME 0.5
+#define STOP_TIME 0.2
 // When the robot reaches the border within this many seconds, start resisting
-#define RESISTANCE_TIME 3.5
+#define RESISTANCE_TIME 5.5
 
 // THESE DO NOT NEED TO BE CHANGED
 enum action {NOTHING, RESIST, STOP};
@@ -45,45 +45,44 @@ enum side {LEFT, RIGHT};
 };*/
 
 // Windy path as specified in:
-// https://i.imgur.com/CqykjsL.png
-/*double borderCoordinates[60] = {
-    -6, -9, -6, 9, // l
-    -6, 9, 6, 9, // j
-    6, 9, 6, -9, // k
-    6, -9, -6, -9, // m
+// https://i.imgur.com/cc3qda1.png
+double borderCoordinates[56] = {
+    -4, -6, -4, 6, // l
+    -4, 6, 4, 6, // j
+    4, 6, 4, -6, // k
+    4, -6, -4, -6, // m
     
-    2, -3, -1, -2, // r
-    -1, -2, 0, 6, // h
-    0, 6, -4, 6, // i
-    -4, 6, -3, -4, // f
-    -3, -4, 2, -3, // g
+    1, -3, -1, -2, // r
+    -1, -2, 0, 4, // h
+    0, 4, -3, 4, // i
+    -3, 4, -2, -4, // f
+    -2, -4, 1, -3, // g
     
-    6, 9, 3, 6, // t
     3, 6, 2, 0, // s
-    2, 0, 5, 0, // b
-    5, 0, 5, -7, // q
-    5, -7, -4, -8, // n
-    -4, -8, -6, -9 // p
-};*/
+    2, 0, 3.5, 0, // b
+    3.5, 0, 3.5, -5, // q
+    3.5, -5, -3, -5, // n
+    -3, -5, -4, -6 // p
+};
 
 // Zigzag path as specified in:
-// https://i.imgur.com/79ABT2I.png
-double borderCoordinates[48] = {
-    -6, -9, -6, 9, // l
-    -6, 9, 6, 9, // j
-    6, 9, 6, -9, // k
-    6, -9, -6, -9, // m
+// https://i.imgur.com/9O1BrWG.png
+/*double borderCoordinates[48] = {
+    -4, -6, -4, 6, // l
+    -4, 6, 4, 6, // j
+    4, 6, 4, -6, // k
+    4, -6, -4, -6, // m
     
-    -2, -9, -6, -4, // q
-    -6, -4, -2, 0, // n
-    -2, 0, -6, 6, // h
-    -6, 6, -2, 9, // g
+    0, -6, -2.5, -3, // q
+    -2.5, -3, -1, 0, // n
+    -1, 0, -3, 3, // h
+    -3, 2, -1, 6, // g
     
-    3, 9, -1, 6, // f
-    -1, 6, 3, 0, // i
-    3, 0, -1, -4, // p
-    -1, -4, 3, -9, // r
-};
+    2, 6, -0.5, 3, // f
+    -0.5, 3, 2, 0, // i
+    2, 0, 0, -3, // p
+    0, -3, 3, -6, // r
+};*/
 
 // A 2D coordinate structure
 typedef struct Coordinate {
@@ -201,7 +200,7 @@ double getAcceleration(Vector * force);
 /*
  * Calculates and returns the dot product of the two given vectors.
  */
-double dot(Vector * v1, Vector * v2);
+double dotProduct(Vector * v1, Vector * v2);
 
 /*
  * Determines whether the robot at position p with the predefined RADIUS is approaching border line b
@@ -315,7 +314,7 @@ double getAcceleration(Vector * force) {
     return force->length / MASS;
 }
 
-double dot(Vector * v1, Vector * v2) {
+double dotProduct(Vector * v1, Vector * v2) {
     return (v1->x * v2->x) + (v1->y * v2->y);
 }
 
@@ -340,7 +339,7 @@ enum action approachingBorder(Coordinate * p, Borderline * b, Vector * force, Ve
     double d = (p->x - v->x) * (w->y - v->y) - (p->y - v->y) * (w->x - v->x);
     
     // Get the cosine of the angle between the force and toBorder vectors
-    double angle = dot(force, toBorder);
+    double angle = dotProduct(force, toBorder);
     // If this value is positive, then force is going towards the border, if it is negative, force is going away
     char goingToBorder = angle > 0 ? 1 : 0;
     
