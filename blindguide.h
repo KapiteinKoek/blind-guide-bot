@@ -190,9 +190,12 @@ void addBorder(double bottomX, double bottomY, double topX, double topY, enum si
  * Compute the necessary resistance when the robot is at the position defined by x, y and phi
  * and the robot is pushed according to forceX and forceY, where forceX and forceY constitute the
  * force vector.
- * Note that the units of x and y are assumed to be meters, and forceX and forceY Newtons.
+ * Note that the units of x and y are assumed to be meters, phi in radians, and forceX and forceY Newtons.
+ * phi = 0 means that the robot is facing towards the positive y axis
+ * obstacles contains an array of 2 * numObstacles elements, where the coordinates for obstacle 0 <= i < numObstacles are specified
+ * in obstacles[2 * i] (x) and obstacles[2 * i + 1] (y)
  */
-double getResistance(double x, double y, double phi, double forceX, double forceY);
+double getResistance(double x, double y, double phi, double forceX, double forceY, int numObstacles, double * obstacles);
 
 /*
  * Calculate the acceleration along the given force vector.
@@ -217,12 +220,21 @@ double dotProduct(Vector * v1, Vector * v2);
 enum action approachingBorder(Coordinate * p, Borderline * b, Vector * force, Vector * toBorder);
 
 /*
+ * Determines whether the robot at position p with the predefined RADIUS is approaching the obstacle at coordinate (x, y)
+ * when it is pushed along force vector force.
+ * toBorder will be populated by the vector from p to the obstacle center
+ * If the robot is pushed towards the obstacle, returns RESIST.
+ * Else, returns NOTHING.
+ */
+enum action approachingObstacle(Coordinate * p, double x, double y, Vector * force, Vector * toBorder);
+
+/*
  * Determines the resistance needed when the robot is pushed with the given force for dist meters.
  * Uses RESISTANCE_TIME and STOP_TIME to create a linearly increasing resistance when the time to traverse
  * the toBorder vector decreases.
  * Return value is clamped between 0 and 1.
  */
-double getBorderResistance(Vector * force, double dist);
+double getDistanceResistance(Vector * force, double dist);
 
 /*
  * Frees the memory allocated for the borderlines array.
@@ -277,7 +289,7 @@ void addBorder(double bottomX, double bottomY, double topX, double topY, enum si
     addToBorderlineArray(&borderlines, bl);
 }
 
-double getResistance(double x, double y, double phi, double forceX, double forceY) {
+double getResistance(double x, double y, double phi, double forceX, double forceY, int numObstacles, double * obstacles) {
     #if DEBUG
         printf("\nGetting resistance for point (%lf,%lf) against direction (%lf, %lf)\n", x, y, forceX, forceY);
     #endif
@@ -316,9 +328,25 @@ double getResistance(double x, double y, double phi, double forceX, double force
         }
     }
     
+    nearestDistance = 1000000000;
+    i = 0;
+    for (i = 0; i < numObstacles; i++) {
+        #if DEBUG
+            printf("\nObstacle %d of %d:\n", i+1, numObstacles);
+        #endif
+        // Determine the necessary action for the current obstacle
+        // The toBorder vector will also be populated accordingly
+        printf("%d: %lf, %lf\n", i, obstacles[2 * i], obstacles[2 * i + 1]);
+        enum action a = approachingObstacle(&point, obstacles[2 * i], obstacles[2 * i + 1], &force, &toBorder);
+        if (toBorder.length >= 0 && toBorder.length < nearestDistance && a != NOTHING) {
+            nearestDistance = toBorder.length;
+            closestBorderAction = a;
+        }
+    }
+    
     if (closestBorderAction == RESIST) {
-        // Determine the calculated resistance that is necessary for the given force and distance to the nearest border
-        resistance = getBorderResistance(&force, nearestDistance);
+        // Determine the calculated resistance that is necessary for the given force and distance to the nearest obstacle
+        resistance = getDistanceResistance(&force, nearestDistance);
     } else if (closestBorderAction == STOP) {
         // If STOP is required, resist fully
         return 1.0;
@@ -395,7 +423,43 @@ enum action approachingBorder(Coordinate * p, Borderline * b, Vector * force, Ve
     return NOTHING;
 }
 
-double getBorderResistance(Vector * force, double dist) {
+enum action approachingObstacle(Coordinate * p, double x, double y, Vector * force, Vector * toBorder) {
+    // Fill the toBorder vector using the given point and the given obstacle coordinates
+    populateVector(x - p->x, y - p->y, toBorder);
+    // Account for the radius of the robot (by reducing the length of the toBorder vector)
+    toBorder->length -= RADIUS;
+    // Account for the radius of the obstacle
+    toBorder->length -= OBSTACLE_RADIUS;
+    
+    // Get the cosine of the angle between the force and toBorder vectors
+    double angle = dotProduct(force, toBorder);
+    // If this value is positive, then force is going towards the obstacle, if it is negative, force is going away
+    char goingToObstacle = angle > 0 ? 1 : 0;
+    
+    // Now calculate the actual distance to the obstacle when moving along the force vector
+    // And make sure the toBorder vector has the same direction as the force vector, with the calculated length
+    double dist = toBorder->length / angle;
+    toBorder->x = force->x;
+    toBorder->y = force->y;
+    toBorder->length = dist;
+    
+    #if DEBUG
+        printf("To obstacle: distance: %lf, x: %lf, y: %lf\n", toBorder->length, toBorder->x, toBorder->y);
+        printf("Force: distance: %lf, x: %lf, y: %lf\n", force->length, force->x, force->y);
+        printf("Angle: %lf, Going to obstacle: %d\n", angle, goingToObstacle);
+    #endif
+    
+    if (goingToObstacle) {
+        // The robot is moving towards the obstacle, so RESIST
+        // Note that the amount of resistance is determined later (this can even be 0 or 1)
+        return RESIST;
+    }
+    
+    // No special circumstance, the robot is not moving towards the obstacle
+    return NOTHING;
+}
+
+double getDistanceResistance(Vector * force, double dist) {
     if (dist <= 0) {
         return 1.0;
     }
