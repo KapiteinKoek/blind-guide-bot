@@ -21,24 +21,39 @@
 #define MASS 30
 // Radius around the center of the robot that must stay between the borders in meter
 #define RADIUS 0.3
+// Radius from the side of the robot that the user is expected to walk in (see also USER_HANDEDNESS)
+#define USER_RADIUS 0.8
 // When the robot reaches the border within this many seconds, stop immediately
 #define STOP_TIME 0.2
 // When the robot reaches the border within this many seconds, start resisting
 #define RESISTANCE_TIME 5.5
 // Radius around obstacles in meter
 #define OBSTACLE_RADIUS 0.5
+// Minimum resistance when moving backwards
+#define BACKWARDS_RESISTANCE 0.5
 
-#define PI 3.14159265358979323846
+// Whether the user is LEFT or RIGHT handed (a RIGHT handed user will walk on the RIGHT side of the robot)
+#define USER_HANDEDNESS RIGHT
 
 // THESE DO NOT NEED TO BE CHANGED
 enum action {NOTHING, RESIST, STOP};
 enum side {LEFT, RIGHT};
+
+#define PI 3.14159265358979323846
 
 /* 
  * The coordinates for the initial borders (bottom_x, bottom_y, top_x, top_y)
  * Note that the border is assumed to be safe to the right of this line
  * So define the top and bottom accordingly
  */
+ 
+// Only the outer borders:
+double borderCoordinates[16] = {
+    -4, -6, -4, 6, // l
+    -4, 6, 4, 6, // j
+    4, 6, 4, -6, // k
+    4, -6, -4, -6, // m
+};
 
 // Two lines; one right of the center, one left of the center:
 /*double borderCoordinates[8] = {
@@ -50,7 +65,7 @@ enum side {LEFT, RIGHT};
 
 // Windy path as specified in:
 // https://i.imgur.com/cc3qda1.png
-double borderCoordinates[56] = {
+/*double borderCoordinates[56] = {
     -4, -6, -4, 6, // l
     -4, 6, 4, 6, // j
     4, 6, 4, -6, // k
@@ -67,7 +82,7 @@ double borderCoordinates[56] = {
     3.5, 0, 3.5, -5, // q
     3.5, -5, -3, -5, // n
     -3, -5, -4, -6 // p
-};
+};*/
 
 // Zigzag path as specified in:
 // https://i.imgur.com/9O1BrWG.png
@@ -211,22 +226,22 @@ double dotProduct(Vector * v1, Vector * v2);
 
 /*
  * Determines whether the robot at position p with the predefined RADIUS is approaching border line b
- * when it is pushed along force vector force.
+ * when it is pushed along force vector force, with rotation phi.
  * toBorder will be populated by the vector from p to the closest point along the border line.
  * If the robot is on the 'good' side of the border, and the robot is pushed towards the border, returns RESIST.
  * If the robot is on the 'bad' side of the border, and the robot is pushed away from the border, returns STOP.
  * Else, returns NOTHING.
  */
-enum action approachingBorder(Coordinate * p, Borderline * b, Vector * force, Vector * toBorder);
+enum action approachingBorder(Coordinate * p, Borderline * b, Vector * force, double phi, Vector * toBorder);
 
 /*
  * Determines whether the robot at position p with the predefined RADIUS is approaching the obstacle at coordinate (x, y)
- * when it is pushed along force vector force.
+ * when it is pushed along force vector force, with rotation phi.
  * toBorder will be populated by the vector from p to the obstacle center
  * If the robot is pushed towards the obstacle, returns RESIST.
  * Else, returns NOTHING.
  */
-enum action approachingObstacle(Coordinate * p, double x, double y, Vector * force, Vector * toBorder);
+enum action approachingObstacle(Coordinate * p, double x, double y, Vector * force, double phi, Vector * toBorder);
 
 /*
  * Determines the resistance needed when the robot is pushed with the given force for dist meters.
@@ -297,10 +312,15 @@ double getResistance(double x, double y, double phi, double forceX, double force
     double resistance = 0;
     Coordinate point = createCoordinate(x, y);
     
-    phi -= 0.5 * PI;
+    // Moving backwards always gives a minimum of BACKWARDS_RESISTANCE resistance
+    if (forceY < 0) {
+        resistance = BACKWARDS_RESISTANCE;
+    }
     
-    double forceXRot = cos(phi) * forceX - sin(phi) * forceY;
-    double forceYRot = sin(phi) * forceX + cos(phi) * forceY;
+    double correctedPhi = phi - 0.5 * PI;
+    
+    double forceXRot = cos(correctedPhi) * forceX - sin(correctedPhi) * forceY;
+    double forceYRot = sin(correctedPhi) * forceX + cos(correctedPhi) * forceY;
     
     Vector force = createVector(forceXRot, forceYRot);
     
@@ -321,11 +341,19 @@ double getResistance(double x, double y, double phi, double forceX, double force
         #endif
         // Determine the necessary action for the current border line
         // The toBorder vector will also be populated accordingly
-        enum action a = approachingBorder(&point, &(borderlines.borderlines[i]), &force, &toBorder);
+        enum action a = approachingBorder(&point, &(borderlines.borderlines[i]), &force, correctedPhi, &toBorder);
         if (toBorder.length >= 0 && toBorder.length < nearestDistance) {
             nearestDistance = toBorder.length;
             closestBorderAction = a;
         }
+    }
+    
+    if (closestBorderAction == RESIST) {
+        // Determine the calculated resistance that is necessary for the given force and distance to the nearest border line
+        resistance = fmax(resistance, getDistanceResistance(&force, nearestDistance));
+    } else if (closestBorderAction == STOP) {
+        // If STOP is required, resist fully
+        return 1.0;
     }
     
     nearestDistance = 1000000000;
@@ -336,7 +364,7 @@ double getResistance(double x, double y, double phi, double forceX, double force
         #endif
         // Determine the necessary action for the current obstacle
         // The toBorder vector will also be populated accordingly
-        enum action a = approachingObstacle(&point, obstacles[2 * i], obstacles[2 * i + 1], &force, &toBorder);
+        enum action a = approachingObstacle(&point, obstacles[2 * i], obstacles[2 * i + 1], &force, correctedPhi, &toBorder);
         if (toBorder.length >= 0 && toBorder.length < nearestDistance && a != NOTHING) {
             nearestDistance = toBorder.length;
             closestBorderAction = a;
@@ -345,7 +373,7 @@ double getResistance(double x, double y, double phi, double forceX, double force
     
     if (closestBorderAction == RESIST) {
         // Determine the calculated resistance that is necessary for the given force and distance to the nearest obstacle
-        resistance = getDistanceResistance(&force, nearestDistance);
+        resistance = fmax(resistance, getDistanceResistance(&force, nearestDistance));
     } else if (closestBorderAction == STOP) {
         // If STOP is required, resist fully
         return 1.0;
@@ -362,7 +390,7 @@ double dotProduct(Vector * v1, Vector * v2) {
     return (v1->x * v2->x) + (v1->y * v2->y);
 }
 
-enum action approachingBorder(Coordinate * p, Borderline * b, Vector * force, Vector * toBorder) {
+enum action approachingBorder(Coordinate * p, Borderline * b, Vector * force, double phi, Vector * toBorder) {
     Coordinate * v = &(b->bottom);
     Coordinate * w = &(b->top);
     
@@ -378,6 +406,23 @@ enum action approachingBorder(Coordinate * p, Borderline * b, Vector * force, Ve
     populateVector(x - p->x, y - p->y, toBorder);
     // Account for the radius of the robot (by reducing the length of the toBorder vector)
     toBorder->length -= RADIUS;
+    
+    double toBorderAngle = atan2(toBorder->y, toBorder->x);
+    double correctedToBorderAngle = toBorderAngle - phi;
+    while (correctedToBorderAngle > PI) correctedToBorderAngle -= 2*PI;
+    while (correctedToBorderAngle < -PI) correctedToBorderAngle += 2*PI;
+    
+    if (USER_HANDEDNESS == RIGHT && correctedToBorderAngle >= -PI * 0.5 && correctedToBorderAngle <= 0) {
+        toBorder->length -= USER_RADIUS;
+        #if DEBUG
+            printf("In right user area.\n");
+        #endif
+    } else if (USER_HANDEDNESS == LEFT && correctedToBorderAngle <= -PI * 0.5 && correctedToBorderAngle >= -PI) {
+        toBorder->length -= USER_RADIUS;
+        #if DEBUG
+            printf("In left user area.\n");
+        #endif
+    }
     
     // Calculate on what side of the border line p is. d < 0 means LEFT, d > means right
     double d = (p->x - v->x) * (w->y - v->y) - (p->y - v->y) * (w->x - v->x);
@@ -400,6 +445,7 @@ enum action approachingBorder(Coordinate * p, Borderline * b, Vector * force, Ve
         printf("To border: distance: %lf, x: %lf, y: %lf\n", toBorder->length, toBorder->x, toBorder->y);
         printf("Force: distance: %lf, x: %lf, y: %lf\n", force->length, force->x, force->y);
         printf("Good side: %s, Side: %s\n", b->goodSide == LEFT ? "left" : "right", d < 0 ? "left" : "right");
+        printf("To border angle: %lf\n", correctedToBorderAngle);
         printf("Angle: %lf, Going to border: %d\n", angle, goingToBorder);
     #endif
     
@@ -422,13 +468,30 @@ enum action approachingBorder(Coordinate * p, Borderline * b, Vector * force, Ve
     return NOTHING;
 }
 
-enum action approachingObstacle(Coordinate * p, double x, double y, Vector * force, Vector * toBorder) {
+enum action approachingObstacle(Coordinate * p, double x, double y, Vector * force, double phi, Vector * toBorder) {
     // Fill the toBorder vector using the given point and the given obstacle coordinates
     populateVector(x - p->x, y - p->y, toBorder);
     // Account for the radius of the robot (by reducing the length of the toBorder vector)
     toBorder->length -= RADIUS;
     // Account for the radius of the obstacle
     toBorder->length -= OBSTACLE_RADIUS;
+    
+    double toBorderAngle = atan2(toBorder->y, toBorder->x);
+    double correctedToBorderAngle = toBorderAngle - phi;
+    while (correctedToBorderAngle > PI) correctedToBorderAngle -= 2*PI;
+    while (correctedToBorderAngle < -PI) correctedToBorderAngle += 2*PI;
+    
+    if (USER_HANDEDNESS == RIGHT && correctedToBorderAngle >= -PI * 0.5 && correctedToBorderAngle <= 0) {
+        toBorder->length -= USER_RADIUS;
+        #if DEBUG
+            printf("In right user area.\n");
+        #endif
+    } else if (USER_HANDEDNESS == LEFT && correctedToBorderAngle <= -PI * 0.5 && correctedToBorderAngle >= -PI) {
+        toBorder->length -= USER_RADIUS;
+        #if DEBUG
+            printf("In left user area.\n");
+        #endif
+    }
     
     // Get the cosine of the angle between the force and toBorder vectors
     double angle = dotProduct(force, toBorder);
@@ -445,6 +508,7 @@ enum action approachingObstacle(Coordinate * p, double x, double y, Vector * for
     #if DEBUG
         printf("To obstacle: distance: %lf, x: %lf, y: %lf\n", toBorder->length, toBorder->x, toBorder->y);
         printf("Force: distance: %lf, x: %lf, y: %lf\n", force->length, force->x, force->y);
+        printf("To obstacle angle: %lf\n", correctedToBorderAngle);
         printf("Angle: %lf, Going to obstacle: %d\n", angle, goingToObstacle);
     #endif
     
