@@ -332,11 +332,10 @@ double getResistance(double x, double y, double phi, double forceX, double force
     i = 0;
     for (i = 0; i < numObstacles; i++) {
         #if DEBUG
-            printf("\nObstacle %d of %d:\n", i+1, numObstacles);
+            printf("\nObstacle %d of %d at (%lf, %lf):\n", i+1, numObstacles, obstacles[2 * i], obstacles[2 * i + 1]);
         #endif
         // Determine the necessary action for the current obstacle
         // The toBorder vector will also be populated accordingly
-        printf("%d: %lf, %lf\n", i, obstacles[2 * i], obstacles[2 * i + 1]);
         enum action a = approachingObstacle(&point, obstacles[2 * i], obstacles[2 * i + 1], &force, &toBorder);
         if (toBorder.length >= 0 && toBorder.length < nearestDistance && a != NOTHING) {
             nearestDistance = toBorder.length;
