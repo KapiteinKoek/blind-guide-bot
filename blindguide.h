@@ -25,6 +25,10 @@
 #define STOP_TIME 0.2
 // When the robot reaches the border within this many seconds, start resisting
 #define RESISTANCE_TIME 5.5
+// Radius around obstacles in meter
+#define OBSTACLE_RADIUS 0.5
+
+#define PI 3.14159265358979323846
 
 // THESE DO NOT NEED TO BE CHANGED
 enum action {NOTHING, RESIST, STOP};
@@ -280,7 +284,20 @@ double getResistance(double x, double y, double phi, double forceX, double force
     
     double resistance = 0;
     Coordinate point = createCoordinate(x, y);
-    Vector force = createVector(forceX, forceY);
+    
+    phi -= 0.5 * PI;
+    
+    double forceXRot = cos(phi) * forceX - sin(phi) * forceY;
+    double forceYRot = sin(phi) * forceX + cos(phi) * forceY;
+    
+    Vector force = createVector(forceXRot, forceYRot);
+    
+    #if DEBUG
+        Vector f = createVector(forceX, forceY);
+        printf("Original force: distance: %lf, x: %lf, y: %lf\n", f.length, f.x, f.y);
+        printf("Force: distance: %lf, x: %lf, y: %lf\n", force.length, force.x, force.y);
+    #endif
+    
     Vector toBorder;
     double nearestDistance = 1000000000;
     enum action closestBorderAction = NOTHING;
