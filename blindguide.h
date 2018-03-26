@@ -28,7 +28,7 @@
 // When the robot reaches the border within this many seconds, start resisting
 #define RESISTANCE_TIME 5.5
 // Radius around obstacles in meter
-#define OBSTACLE_RADIUS 0.5
+#define OBSTACLE_RADIUS 0.1
 // Minimum resistance when moving backwards
 #define BACKWARDS_RESISTANCE 0.5
 
@@ -39,7 +39,9 @@
 enum action {NOTHING, RESIST, STOP};
 enum side {LEFT, RIGHT};
 
-#define PI 3.14159265358979323846
+#ifndef PI
+    #define PI 3.14159265358979323846
+#endif
 
 /* 
  * The coordinates for the initial borders (bottom_x, bottom_y, top_x, top_y)
@@ -48,12 +50,12 @@ enum side {LEFT, RIGHT};
  */
  
 // Only the outer borders:
-double borderCoordinates[16] = {
+/*double borderCoordinates[16] = {
     -4, -6, -4, 6, // l
     -4, 6, 4, 6, // j
     4, 6, 4, -6, // k
     4, -6, -4, -6, // m
-};
+};*/
 
 // Two lines; one right of the center, one left of the center:
 /*double borderCoordinates[8] = {
@@ -86,7 +88,7 @@ double borderCoordinates[16] = {
 
 // Zigzag path as specified in:
 // https://i.imgur.com/9O1BrWG.png
-/*double borderCoordinates[48] = {
+double borderCoordinates[48] = {
     -4, -6, -4, 6, // l
     -4, 6, 4, 6, // j
     4, 6, 4, -6, // k
@@ -95,13 +97,13 @@ double borderCoordinates[16] = {
     0, -6, -2.5, -3, // q
     -2.5, -3, -1, 0, // n
     -1, 0, -3, 3, // h
-    -3, 2, -1, 6, // g
+    -3, 3, -1, 6, // g
     
     2, 6, -0.5, 3, // f
     -0.5, 3, 2, 0, // i
     2, 0, 0, -3, // p
     0, -3, 3, -6, // r
-};*/
+};
 
 // A 2D coordinate structure
 typedef struct Coordinate {
@@ -210,7 +212,7 @@ void addBorder(double bottomX, double bottomY, double topX, double topY, enum si
  * obstacles contains an array of 2 * numObstacles elements, where the coordinates for obstacle 0 <= i < numObstacles are specified
  * in obstacles[2 * i] (x) and obstacles[2 * i + 1] (y)
  */
-double getResistance(double x, double y, double phi, double forceX, double forceY, int numObstacles, double * obstacles);
+double getResistance(double x, double y, double phi, double forceX, double forceY, unsigned int numObstacles, double * obstacles);
 
 /*
  * Calculate the acceleration along the given force vector.
@@ -304,7 +306,7 @@ void addBorder(double bottomX, double bottomY, double topX, double topY, enum si
     addToBorderlineArray(&borderlines, bl);
 }
 
-double getResistance(double x, double y, double phi, double forceX, double forceY, int numObstacles, double * obstacles) {
+double getResistance(double x, double y, double phi, double forceX, double forceY, unsigned int numObstacles, double * obstacles) {
     #if DEBUG
         printf("\nGetting resistance for point (%lf,%lf) against direction (%lf, %lf)\n", x, y, forceX, forceY);
     #endif
@@ -312,15 +314,15 @@ double getResistance(double x, double y, double phi, double forceX, double force
     double resistance = 0;
     Coordinate point = createCoordinate(x, y);
     
+    double forceAngle = atan2(forceY, forceX);
+    
     // Moving backwards always gives a minimum of BACKWARDS_RESISTANCE resistance
-    if (forceY < 0) {
-        resistance = BACKWARDS_RESISTANCE;
+    if (forceAngle < 0) {
+        resistance = BACKWARDS_RESISTANCE * (1 - 2 * abs(forceAngle / PI + 0.5));
     }
     
-    double correctedPhi = phi - 0.5 * PI;
-    
-    double forceXRot = cos(correctedPhi) * forceX - sin(correctedPhi) * forceY;
-    double forceYRot = sin(correctedPhi) * forceX + cos(correctedPhi) * forceY;
+    double forceXRot = cos(phi) * forceX - sin(phi) * forceY;
+    double forceYRot = sin(phi) * forceX + cos(phi) * forceY;
     
     Vector force = createVector(forceXRot, forceYRot);
     
@@ -341,7 +343,7 @@ double getResistance(double x, double y, double phi, double forceX, double force
         #endif
         // Determine the necessary action for the current border line
         // The toBorder vector will also be populated accordingly
-        enum action a = approachingBorder(&point, &(borderlines.borderlines[i]), &force, correctedPhi, &toBorder);
+        enum action a = approachingBorder(&point, &(borderlines.borderlines[i]), &force, phi, &toBorder);
         if (toBorder.length >= 0 && toBorder.length < nearestDistance) {
             nearestDistance = toBorder.length;
             closestBorderAction = a;
@@ -356,6 +358,10 @@ double getResistance(double x, double y, double phi, double forceX, double force
         return 1.0;
     }
     
+    if (numObstacles == 1 && obstacles[0] == x && obstacles[1] == y) {
+        numObstacles = 0;
+    }
+    
     nearestDistance = 1000000000;
     i = 0;
     for (i = 0; i < numObstacles; i++) {
@@ -364,7 +370,7 @@ double getResistance(double x, double y, double phi, double forceX, double force
         #endif
         // Determine the necessary action for the current obstacle
         // The toBorder vector will also be populated accordingly
-        enum action a = approachingObstacle(&point, obstacles[2 * i], obstacles[2 * i + 1], &force, correctedPhi, &toBorder);
+        enum action a = approachingObstacle(&point, obstacles[2 * i], obstacles[2 * i + 1], &force, phi, &toBorder);
         if (toBorder.length >= 0 && toBorder.length < nearestDistance && a != NOTHING) {
             nearestDistance = toBorder.length;
             closestBorderAction = a;

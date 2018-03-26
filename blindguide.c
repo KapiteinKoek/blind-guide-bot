@@ -22,12 +22,12 @@
 #include <math.h>
 #include <stdlib.h>
 #include <stdio.h>
-#include "blindguide.h" 
 
 /* include h-files */
 #include "Simulink/Bus/busses/bus.h"
 #include "Global_par/constants.h"
 #include "GeneralFunctions/generic_functions.h"
+#include "blindguide.h"
 
 Coordinate createCoordinate(double x, double y) {
     Coordinate c;
@@ -54,10 +54,11 @@ Vector createVector(double x, double y) {
 /***************************
  * Input Ports definitions *
  ***************************/
-#define NINPUTS     2                   /* Number of input ports (0...)*/
+#define NINPUTS     3                   /* Number of input ports (0...)*/
 #define NINPUTS0    POSETYPESIZE                   /* cur x y o */
 #define NINPUTS1    3                   /* Jerrel's Forces */
-double NINPUTS_BGuide[NINPUTS] =  {NINPUTS0,NINPUTS1};
+#define NINPUTS2    48                   /* Ball xyzdxdydz */
+double NINPUTS_BGuide[NINPUTS] =  {NINPUTS0,NINPUTS1,NINPUTS2};
 
 
 /****************************
@@ -90,6 +91,11 @@ static void mdlInitializeSizes(SimStruct *S)
     ssSetInputPortDirectFeedThrough(S,1,1);
     ssSetInputPortRequiredContiguous(S,1,1);
     ssSetInputPortDataType(S,1,SS_DOUBLE);
+    /* input port i */
+    ssSetInputPortWidth(S,2,NINPUTS_BGuide[2]);
+    ssSetInputPortDirectFeedThrough(S,2,1);
+    ssSetInputPortRequiredContiguous(S,2,1);
+    ssSetInputPortDataType(S,2,SS_INT8);
 
     
     /****************************
@@ -160,12 +166,13 @@ static void mdlOutputs(SimStruct *S, int_T tid)
     /* Input Ports */
     pPose_t cur_xyo = (pPose_t)ssGetInputPortRealSignalPtrs(S,0);             /* motionbus */
     double* Fvec    = (double*)ssGetInputPortRealSignalPtrs(S,1);
+    pBall_t ball    = (pBall_t)ssGetInputPortRealSignalPtrs(S,2);
 
     /* Output Ports */
     double* resistance      = (double*)ssGetOutputPortSignal(S,0);
    
     initializeBorders();
-    *resistance = getResistance(cur_xyo->x, cur_xyo->y, cur_xyo->o, Fvec[0], Fvec[1]);
+    *resistance = getResistance(cur_xyo->x, cur_xyo->y, cur_xyo->o, Fvec[0], Fvec[1], 1, ball->pos.arr);
     cleanup();
     
 }
